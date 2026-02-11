@@ -17,7 +17,7 @@ namespace Plumsail.DataSource.Dynamics365.CRM
         private readonly ILogger<Authorize> _logger = logger;
 
         [Function("D365-CRM-Authorize")]
-        public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = "crm/authorize")] HttpRequest req)
+        public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "crm/authorize")] HttpRequest req)
         {
             var scopes = new string[] { $"{_settings.DynamicsUrl}/user_impersonation", "offline_access" };
 
