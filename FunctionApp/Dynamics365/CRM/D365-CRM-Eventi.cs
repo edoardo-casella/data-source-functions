@@ -17,7 +17,7 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                 var client = httpClientProvider.Create();
                 if (!id.HasValue)
                 {
-                    var eventiJson = await client.GetStringAsync("cr6ef_eventos?$select=cr6ef_eventoid,cr6ef_name,cr6ef_Status,cr6ef_Venue,cr6ef_dataevento");
+                    var eventiJson = await client.GetStringAsync("cr6ef_eventi?$select=cr6ef_eventoid,cr6ef_name,cr6ef_Status,cr6ef_Venue,cr6ef_dataevento");
                     var eventi = JsonValue.Parse(eventiJson);
                     return new OkObjectResult(eventi?["value"]);
                 }
