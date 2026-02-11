@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
@@ -19,7 +19,7 @@ namespace Plumsail.DataSource.Dynamics365.CRM
         [Function("D365-CRM-Authorize")]
         public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = "crm/authorize")] HttpRequest req)
         {
-            var scopes = new string[] { $"https://admin.services.crm.dynamics.com/user_impersonation", "offline_access" };
+            var scopes = new string[] { $"{_settings.DynamicsUrl}/user_impersonation", "offline_access" };
 
             if (req.Method == "POST" && req.Form.ContainsKey("code"))
             {
@@ -34,7 +34,7 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                 var cache = new TokenCacheHelper(AzureApp.CacheFileDir);
                 cache.EnableSerialization(app.UserTokenCache);
                 
-                _ = await app.AcquireTokenByAuthorizationCode(["https://admin.services.crm.dynamics.com/user_impersonation"], code).ExecuteAsync();
+                _ = await app.AcquireTokenByAuthorizationCode([$"{_settings.DynamicsUrl}/user_impersonation"], code).ExecuteAsync();
 
                 return new OkObjectResult("The app is authorized to perform operations on behalf of your account.");
             }
@@ -46,6 +46,7 @@ namespace Plumsail.DataSource.Dynamics365.CRM
             url.Append($"redirect_uri={req.GetEncodedUrl()}&");
             url.Append($"response_mode=form_post&");
             url.Append($"scope={WebUtility.UrlEncode(string.Join(" ", scopes))}&");
+
             return new RedirectResult(url.ToString(), false);
         }
     }
