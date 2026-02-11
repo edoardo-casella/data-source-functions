@@ -24,11 +24,12 @@ namespace Plumsail.DataSource.Dynamics365.CRM
             if (req.Method == "POST" && req.Form.ContainsKey("code"))
             {
                 var code = req.Form["code"].FirstOrDefault();
+                var redirectUri = $"{req.Scheme}://{req.Host}{req.Path}";
 
                 var app = ConfidentialClientApplicationBuilder.Create(_settings.ClientId)
                     .WithClientSecret(_settings.ClientSecret)
                     .WithTenantId(_settings.Tenant)
-                    .WithRedirectUri(req.GetDisplayUrl())
+                    .WithRedirectUri(redirectUri)
                     .Build();
 
                 var cache = new TokenCacheHelper(AzureApp.CacheFileDir);
@@ -39,11 +40,12 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                 return new OkObjectResult("The app is authorized to perform operations on behalf of your account.");
             }
 
+            var redirectUri2 = $"{req.Scheme}://{req.Host}{req.Path}";
             var url = new StringBuilder();
             url.Append($"https://login.microsoftonline.com/{_settings.Tenant}/oauth2/v2.0/authorize?");
             url.Append($"client_id={_settings.ClientId}&");
             url.Append($"response_type=code&");
-            url.Append($"redirect_uri={req.GetEncodedUrl()}&");
+            url.Append($"redirect_uri={WebUtility.UrlEncode(redirectUri2)}&");
             url.Append($"response_mode=form_post&");
             url.Append($"scope={WebUtility.UrlEncode(string.Join(" ", scopes))}&");
 
