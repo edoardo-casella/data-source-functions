@@ -17,11 +17,11 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                 var client = httpClientProvider.Create();
                 if (!id.HasValue)
                 {
-                    var eventiJson = await client.GetStringAsync("cr6ef_eventi?$select=cr6ef_eventoid,cr6ef_name,cr6ef_Status,cr6ef_Venue,cr6ef_dataevento");
+                    var eventiJson = await client.GetStringAsync("cr6ef_evento?$select=cr6ef_eventoid,cr6ef_nomeevento,cr6ef_status,cr6ef_venue,cr6ef_dataevento");
                     var eventi = JsonValue.Parse(eventiJson);
                     return new OkObjectResult(eventi?["value"]);
                 }
-                var eventoResponse = await client.GetAsync($"cr6ef_eventos({id})");
+                var eventoResponse = await client.GetAsync($"cr6ef_evento({id})");
                 if (!eventoResponse.IsSuccessStatusCode)
                 {
                     if (eventoResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
