@@ -2,44 +2,45 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
-using Microsoft.PowerPlatform.Dataverse.Client;
-using Microsoft.Xrm.Sdk.Query;
-using System;
+using System.Text.Json.Nodes;
 
-namespace FunctionApp.Dynamics365.CRM
+namespace Plumsail.DataSource.Dynamics365.CRM
 {
-    public class Eventi
+    public class Eventi(HttpClientProvider httpClientProvider, ILogger<Eventi> logger)
     {
         [Function("D365-CRM-Eventi")]
-        public IActionResult Run(
-            [HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequest req,
-            FunctionContext executionContext)
+        public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "get", Route = "crm/eventi/{id?}")] HttpRequest req, Guid? id)
         {
-            var logger = executionContext.GetLogger("D365-CRM-Eventi");
-
+            logger.LogInformation("Dynamics365-CRM-Eventi is requested.");
             try
             {
-                var serviceClient = new ServiceClient(
-                    Environment.GetEnvironmentVariable("Dynamics365.CRM__AzureApp__DynamicsUrl"),
-                    Environment.GetEnvironmentVariable("Dynamics365.CRM__AzureApp__ClientId"),
-                    Environment.GetEnvironmentVariable("Dynamics365.CRM__AzureApp__ClientSecret"),
-                    false);
-
-                var fetchXml = @"<fetch top='50'>
-                    <entity name='cr6ef_evento'>
-                        <attribute name='cr6ef_eventoid' />
-                        <attribute name='cr6ef_name' />
-                    </entity>
-                </fetch>";
-
-                var result = serviceClient.RetrieveMultiple(new FetchExpression(fetchXml));
-
-                return new OkObjectResult(result.Entities);
+                var client = httpClientProvider.Create();
+                if (!id.HasValue)
+                {
+                    var eventiJson = await client.GetStringAsync("cr6ef_eventos?$select=cr6ef_eventoid,cr6ef_name,cr6ef_Status,cr6ef_Venue,cr6ef_dataevento");
+                    var eventi = JsonValue.Parse(eventiJson);
+                    return new OkObjectResult(eventi?["value"]);
+                }
+                var eventoResponse = await client.GetAsync($"cr6ef_eventos({id})");
+                if (!eventoResponse.IsSuccessStatusCode)
+                {
+                    if (eventoResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    {
+                        return new NotFoundResult();
+                    }
+                    eventoResponse.EnsureSuccessStatusCode();
+                }
+                var eventoJson = await eventoResponse.Content.ReadAsStringAsync();
+                return new ContentResult()
+                {
+                    Content = eventoJson,
+                    ContentType = "application/json"
+                };
             }
-            catch (Exception ex)
+            catch (HttpRequestException ex)
             {
-                logger.LogError(ex, "Error retrieving eventi");
-                return new StatusCodeResult(500);
+                logger.LogError(ex, "An error has occured while processing Dynamics365-CRM-Eventi request.");
+                return new StatusCodeResult(ex.StatusCode.HasValue ? (int)ex.StatusCode.Value : StatusCodes.Status500InternalServerError);
             }
         }
     }
