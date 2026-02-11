@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using Microsoft.Identity.Client;
 using Plumsail.DataSource.Dynamics365.CRM.Settings;
 using System.Net.Http.Headers;
@@ -17,7 +17,6 @@ namespace Plumsail.DataSource.Dynamics365.CRM
             client.DefaultRequestHeaders.Add("OData-MaxVersion", "4.0");
             client.DefaultRequestHeaders.Add("OData-Version", "4.0");
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
             return client;
         }
     }
@@ -29,14 +28,12 @@ namespace Plumsail.DataSource.Dynamics365.CRM
         {
             var app = ConfidentialClientApplicationBuilder.Create(azureAppSettings.ClientId)
                .WithClientSecret(azureAppSettings.ClientSecret)
-               .WithTenantId(azureAppSettings.Tenant)
+               .WithAuthority($"https://login.microsoftonline.com/{azureAppSettings.Tenant}")
                .Build();
 
-            var cache = new TokenCacheHelper(AzureApp.CacheFileDir);
-            cache.EnableSerialization(app.UserTokenCache);
+            var result = await app.AcquireTokenForClient(new[] { $"{azureAppSettings.DynamicsUrl}/.default" })
+                .ExecuteAsync(cancellationToken);
 
-            var account = await app.GetAccountAsync(cache.GetAccountIdentifier());
-            var result = await app.AcquireTokenSilent([$"{azureAppSettings.DynamicsUrl}/user_impersonation"], account).ExecuteAsync(cancellationToken);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", result.AccessToken);
             return await base.SendAsync(request, cancellationToken);
         }
