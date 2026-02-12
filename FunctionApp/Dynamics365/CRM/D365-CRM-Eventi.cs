@@ -28,7 +28,16 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                         "&$expand=cr6ef_Evento($select=cr6ef_eventoid,cr6ef_nomeevento,cr6ef_status)" +
                         "&$select=cr6ef_calendariovenueid,cr6ef_inizio,cr6ef_venue,cr6ef_tipologia";
                     
-                    var calendarioVenueJson = await client.GetStringAsync(query);
+                    // Usiamo GetAsync invece di GetStringAsync per poter leggere l'errore se fallisce
+                    var response = await client.GetAsync(query);
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        var errorContent = await response.Content.ReadAsStringAsync();
+                        throw new HttpRequestException($"Dataverse Error: {response.StatusCode} - {errorContent}", null, response.StatusCode);
+                    }
+
+                    var calendarioVenueJson = await response.Content.ReadAsStringAsync();
                     var calendarioVenue = JsonNode.Parse(calendarioVenueJson);
                     
                     var value = calendarioVenue?["value"]?.AsArray();
@@ -41,7 +50,7 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                             // NOTA: cr6ef_Evento con la 'E' maiuscola per leggere il JSON
                             var evento = item?["cr6ef_Evento"];
                             
-                            // Se non c'è l'evento collegato, saltiamo il record o gestiamo come null
+                            // Se non c'è l'evento collegato, saltiamo il record
                             if (evento == null) continue;
                             
                             var transformedItem = new JsonObject
@@ -79,7 +88,9 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                     {
                         return new NotFoundResult();
                     }
-                    calendarioResponse.EnsureSuccessStatusCode();
+                    // Leggiamo il contenuto dell'errore per mostrarlo nel catch
+                    var errorDetail = await calendarioResponse.Content.ReadAsStringAsync();
+                    throw new HttpRequestException($"Dataverse Error (Single): {calendarioResponse.StatusCode} - {errorDetail}", null, calendarioResponse.StatusCode);
                 }
                 
                 var calendarioJson = await calendarioResponse.Content.ReadAsStringAsync();
@@ -101,10 +112,29 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                 
                 return new OkObjectResult(transformedSingle);
             }
-            catch (HttpRequestException ex)
+            // *** NUOVO BLOCCO CATCH "PARLANTE" ***
+            catch (Exception ex)
             {
                 logger.LogError(ex, "An error has occurred while processing Dynamics365-CRM-Eventi request.");
-                return new StatusCodeResult(ex.StatusCode.HasValue ? (int)ex.StatusCode.Value : StatusCodes.Status500InternalServerError);
+
+                // Costruiamo un oggetto errore che n8n può leggere
+                var errorResponse = new 
+                {
+                    error = "Errore durante l'esecuzione della Azure Function",
+                    details = ex.Message, // Qui vedrai l'errore esatto di Dataverse
+                    type = ex.GetType().Name
+                };
+
+                int statusCode = 500;
+                if (ex is HttpRequestException httpEx && httpEx.StatusCode.HasValue)
+                {
+                    statusCode = (int)httpEx.StatusCode.Value;
+                }
+
+                return new ObjectResult(errorResponse)
+                {
+                    StatusCode = statusCode
+                };
             }
         }
     }
