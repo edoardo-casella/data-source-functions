@@ -21,7 +21,7 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                 
                 if (!id.HasValue)
                 {
-                    // Query Calendar Venue con expand su Evento
+                    // Query tutti i Calendar Venue con expand su Evento
                     var query = "cr6ef_calendariove nues" +
                         "?$filter=cr6ef_tipologia eq 848780001" +
                         "&$expand=cr6ef_evento($select=cr6ef_eventoid,cr6ef_nomeevento,cr6ef_status)" +
@@ -30,7 +30,7 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                     var calendarioVenueJson = await client.GetStringAsync(query);
                     var calendarioVenue = JsonValue.Parse(calendarioVenueJson);
                     
-                    // Trasforma i dati per appiattire la struttura
+                    // Trasforma i dati appiattendo la struttura
                     var value = calendarioVenue?["value"]?.AsArray();
                     if (value != null)
                     {
@@ -63,7 +63,7 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                     return new OkObjectResult(new JsonArray());
                 }
                 
-                // Query singolo calendar venue
+                // Query singolo calendar venue per ID
                 var singleQuery = $"cr6ef_calendariove nues({id})" +
                     "?$expand=cr6ef_evento($select=cr6ef_eventoid,cr6ef_nomeevento,cr6ef_status)" +
                     "&$select=cr6ef_calendariovenueid,cr6ef_inizio,cr6ef_venue,cr6ef_tipologia";
