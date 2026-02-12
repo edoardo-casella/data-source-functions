@@ -19,7 +19,7 @@ namespace Plumsail.DataSource.Dynamics365.CRM
             {
                 var client = httpClientProvider.Create();
                 
-                // HEADER FONDAMENTALE: Serve per ottenere il testo "UnipolArena" invece del numero "1"
+                // Header per ottenere le etichette testuali (es. "Unipol Arena", "In Vendita")
                 if (!client.DefaultRequestHeaders.Contains("Prefer"))
                 {
                     client.DefaultRequestHeaders.Add("Prefer", "odata.include-annotations=\"OData.Community.Display.V1.FormattedValue\"");
@@ -28,11 +28,25 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                 // *** LOGICA PER LA LISTA (TUTTI I RECORD) ***
                 if (!id.HasValue)
                 {
+                    // Codici Filtro
+                    int tipoEventoPrincipale = 848780001;
+                    int statoAttivo = 0; // 0 = Active, 1 = Inactive
+                    int statusInVendita = 848780004; // Recuperato dai tuoi metadati
+
                     var query = "cr6ef_calendariovenues" +
-                        "?$filter=cr6ef_tipologia eq 848780001" +
-                        // MODIFICA QUI: Chiediamo la venue DENTRO l'evento ($expand)
-                        // Aggiunto 'cr6ef_venue' alla lista dei campi selezionati nell'evento
+                        // 1. Filtro Tipologia (Evento Principale)
+                        $"?$filter=cr6ef_tipologia eq {tipoEventoPrincipale}" +
+                        
+                        // 2. Filtro SOLO ATTIVI (Esclude i record disattivati)
+                        $" and statecode eq {statoAttivo}" +
+                        
+                        // 3. Filtro STATUS EVENTO = IN VENDITA (Tramite la relazione cr6ef_Evento)
+                        $" and cr6ef_Evento/cr6ef_status eq {statusInVendita}" +
+
+                        // EXPAND: Recuperiamo i dati dell'evento (inclusa la Venue che è lì dentro)
                         "&$expand=cr6ef_Evento($select=cr6ef_eventoid,cr6ef_nomeevento,cr6ef_status,cr6ef_venue)" +
+                        
+                        // SELECT: Campi del calendario
                         "&$select=cr6ef_calendariovenueid,cr6ef_inizio,cr6ef_tipologia";
                     
                     var response = await client.GetAsync(query);
@@ -53,7 +67,7 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                         
                         foreach (var item in value)
                         {
-                            var evento = item?["cr6ef_Evento"]; // Nota: 'E' Maiuscola per la relazione
+                            var evento = item?["cr6ef_Evento"];
                             if (evento == null) continue;
                             
                             var transformedItem = new JsonObject
@@ -61,18 +75,19 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                                 ["calendariovenueid"] = item?["cr6ef_calendariovenueid"]?.DeepClone(),
                                 ["dataEvento"] = item?["cr6ef_inizio"]?.DeepClone(),
                                 
-                                // VENUE: La prendiamo dall'oggetto 'evento', non da 'item'
-                                // cr6ef_venue = Il codice numerico (es. 1)
-                                ["venueId"] = evento?["cr6ef_venue"]?.DeepClone(), 
-                                // FormattedValue = Il testo (es. "UnipolArena")
+                                // VENUE (Presa dall'evento collegato)
+                                ["venueId"] = evento?["cr6ef_venue"]?.DeepClone(),
                                 ["venueName"] = evento?["cr6ef_venue@OData.Community.Display.V1.FormattedValue"]?.DeepClone(),
                                 
+                                // Tipologia Calendario
                                 ["tipologia"] = item?["cr6ef_tipologia"]?.DeepClone(),
                                 ["tipologiaLabel"] = item?["cr6ef_tipologia@OData.Community.Display.V1.FormattedValue"]?.DeepClone(),
                                 
+                                // Dati Evento
                                 ["eventoId"] = evento?["cr6ef_eventoid"]?.DeepClone(),
                                 ["nomeEvento"] = evento?["cr6ef_nomeevento"]?.DeepClone(),
-                                ["status"] = evento?["cr6ef_status"]?.DeepClone()
+                                ["status"] = evento?["cr6ef_status"]?.DeepClone(),
+                                ["statusLabel"] = evento?["cr6ef_status@OData.Community.Display.V1.FormattedValue"]?.DeepClone()
                             };
                             
                             transformed.Add(transformedItem);
@@ -85,8 +100,8 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                 }
                 
                 // *** LOGICA PER IL SINGOLO RECORD ***
+                // Qui non mettiamo filtri di stato, perché se chiedo un ID specifico voglio vederlo anche se è bozza/inattivo
                 var singleQuery = $"cr6ef_calendariovenues({id})" +
-                    // MODIFICA QUI: Aggiunto cr6ef_venue nell'expand
                     "?$expand=cr6ef_Evento($select=cr6ef_eventoid,cr6ef_nomeevento,cr6ef_status,cr6ef_venue)" +
                     "&$select=cr6ef_calendariovenueid,cr6ef_inizio,cr6ef_tipologia";
                 
@@ -95,7 +110,6 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                 if (!singleResponse.IsSuccessStatusCode)
                 {
                     if (singleResponse.StatusCode == System.Net.HttpStatusCode.NotFound) return new NotFoundResult();
-                    
                     var errorDetail = await singleResponse.Content.ReadAsStringAsync();
                     throw new HttpRequestException($"Dataverse Single Error: {singleResponse.StatusCode} - {errorDetail}", null, singleResponse.StatusCode);
                 }
@@ -109,7 +123,6 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                     ["calendariovenueid"] = calendario?["cr6ef_calendariovenueid"]?.DeepClone(),
                     ["dataEvento"] = calendario?["cr6ef_inizio"]?.DeepClone(),
                     
-                    // VENUE: La prendiamo dall'oggetto 'eventoData'
                     ["venueId"] = eventoData?["cr6ef_venue"]?.DeepClone(),
                     ["venueName"] = eventoData?["cr6ef_venue@OData.Community.Display.V1.FormattedValue"]?.DeepClone(),
                     
@@ -118,7 +131,8 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                     
                     ["eventoId"] = eventoData?["cr6ef_eventoid"]?.DeepClone(),
                     ["nomeEvento"] = eventoData?["cr6ef_nomeevento"]?.DeepClone(),
-                    ["status"] = eventoData?["cr6ef_status"]?.DeepClone()
+                    ["status"] = eventoData?["cr6ef_status"]?.DeepClone(),
+                    ["statusLabel"] = eventoData?["cr6ef_status@OData.Community.Display.V1.FormattedValue"]?.DeepClone()
                 };
                 
                 return new OkObjectResult(transformedSingle);
