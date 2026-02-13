@@ -31,8 +31,10 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                     // Codici Filtro
                     int tipoEventoPrincipale = 848780001;
                     int statoAttivo = 0; // 0 = Active, 1 = Inactive
-                    int statusInVendita = 848780004; // Recuperato dai tuoi metadati
-                    int formAccreditiRichiesto = 1;  // Nuovo filtro
+                    int statusInVendita = 848780004; 
+                    
+                    // CORREZIONE: Dataverse si aspetta 'true' per i campi booleani, non '1'
+                    string formAccreditiRichiesto = "true";  
 
                     var query = "cr6ef_calendariovenues" +
                         // 1. Filtro Tipologia (Evento Principale)
@@ -41,13 +43,13 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                         // 2. Filtro SOLO ATTIVI (Esclude i record disattivati)
                         $" and statecode eq {statoAttivo}" +
                         
-                        // 3. Filtro STATUS EVENTO = IN VENDITA (Tramite la relazione cr6ef_Evento)
+                        // 3. Filtro STATUS EVENTO = IN VENDITA
                         $" and cr6ef_Evento/cr6ef_status eq {statusInVendita}" +
 
-                        // 4. Filtro FORM ACCREDITI = 1 (Tramite la relazione cr6ef_Evento)
+                        // 4. Filtro FORM ACCREDITI = TRUE (Sì)
                         $" and cr6ef_Evento/cr6ef_formaccrediti eq {formAccreditiRichiesto}" +
 
-                        // EXPAND: Recuperiamo i dati dell'evento (aggiunto cr6ef_formaccrediti)
+                        // EXPAND: Recuperiamo i dati dell'evento
                         "&$expand=cr6ef_Evento($select=cr6ef_eventoid,cr6ef_nomeevento,cr6ef_status,cr6ef_venue,cr6ef_formaccrediti)" +
                         
                         // SELECT: Campi del calendario
@@ -79,7 +81,7 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                                 ["calendariovenueid"] = item?["cr6ef_calendariovenueid"]?.DeepClone(),
                                 ["dataEvento"] = item?["cr6ef_inizio"]?.DeepClone(),
                                 
-                                // VENUE (Presa dall'evento collegato)
+                                // VENUE
                                 ["venueId"] = evento?["cr6ef_venue"]?.DeepClone(),
                                 ["venueName"] = evento?["cr6ef_venue@OData.Community.Display.V1.FormattedValue"]?.DeepClone(),
                                 
@@ -108,7 +110,6 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                 }
                 
                 // *** LOGICA PER IL SINGOLO RECORD ***
-                // Aggiunto cr6ef_formaccrediti al $select nell'expand
                 var singleQuery = $"cr6ef_calendariovenues({id})" +
                     "?$expand=cr6ef_Evento($select=cr6ef_eventoid,cr6ef_nomeevento,cr6ef_status,cr6ef_venue,cr6ef_formaccrediti)" +
                     "&$select=cr6ef_calendariovenueid,cr6ef_inizio,cr6ef_tipologia";
