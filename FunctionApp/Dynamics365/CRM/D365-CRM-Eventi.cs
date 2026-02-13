@@ -32,6 +32,7 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                     int tipoEventoPrincipale = 848780001;
                     int statoAttivo = 0; // 0 = Active, 1 = Inactive
                     int statusInVendita = 848780004; // Recuperato dai tuoi metadati
+                    int formAccreditiRichiesto = 1;  // Nuovo filtro
 
                     var query = "cr6ef_calendariovenues" +
                         // 1. Filtro Tipologia (Evento Principale)
@@ -43,8 +44,11 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                         // 3. Filtro STATUS EVENTO = IN VENDITA (Tramite la relazione cr6ef_Evento)
                         $" and cr6ef_Evento/cr6ef_status eq {statusInVendita}" +
 
-                        // EXPAND: Recuperiamo i dati dell'evento (inclusa la Venue che è lì dentro)
-                        "&$expand=cr6ef_Evento($select=cr6ef_eventoid,cr6ef_nomeevento,cr6ef_status,cr6ef_venue)" +
+                        // 4. Filtro FORM ACCREDITI = 1 (Tramite la relazione cr6ef_Evento)
+                        $" and cr6ef_Evento/cr6ef_formaccrediti eq {formAccreditiRichiesto}" +
+
+                        // EXPAND: Recuperiamo i dati dell'evento (aggiunto cr6ef_formaccrediti)
+                        "&$expand=cr6ef_Evento($select=cr6ef_eventoid,cr6ef_nomeevento,cr6ef_status,cr6ef_venue,cr6ef_formaccrediti)" +
                         
                         // SELECT: Campi del calendario
                         "&$select=cr6ef_calendariovenueid,cr6ef_inizio,cr6ef_tipologia";
@@ -87,7 +91,11 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                                 ["eventoId"] = evento?["cr6ef_eventoid"]?.DeepClone(),
                                 ["nomeEvento"] = evento?["cr6ef_nomeevento"]?.DeepClone(),
                                 ["status"] = evento?["cr6ef_status"]?.DeepClone(),
-                                ["statusLabel"] = evento?["cr6ef_status@OData.Community.Display.V1.FormattedValue"]?.DeepClone()
+                                ["statusLabel"] = evento?["cr6ef_status@OData.Community.Display.V1.FormattedValue"]?.DeepClone(),
+                                
+                                // Form Accrediti
+                                ["formAccrediti"] = evento?["cr6ef_formaccrediti"]?.DeepClone(),
+                                ["formAccreditiLabel"] = evento?["cr6ef_formaccrediti@OData.Community.Display.V1.FormattedValue"]?.DeepClone()
                             };
                             
                             transformed.Add(transformedItem);
@@ -100,9 +108,9 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                 }
                 
                 // *** LOGICA PER IL SINGOLO RECORD ***
-                // Qui non mettiamo filtri di stato, perché se chiedo un ID specifico voglio vederlo anche se è bozza/inattivo
+                // Aggiunto cr6ef_formaccrediti al $select nell'expand
                 var singleQuery = $"cr6ef_calendariovenues({id})" +
-                    "?$expand=cr6ef_Evento($select=cr6ef_eventoid,cr6ef_nomeevento,cr6ef_status,cr6ef_venue)" +
+                    "?$expand=cr6ef_Evento($select=cr6ef_eventoid,cr6ef_nomeevento,cr6ef_status,cr6ef_venue,cr6ef_formaccrediti)" +
                     "&$select=cr6ef_calendariovenueid,cr6ef_inizio,cr6ef_tipologia";
                 
                 var singleResponse = await client.GetAsync(singleQuery);
@@ -132,7 +140,10 @@ namespace Plumsail.DataSource.Dynamics365.CRM
                     ["eventoId"] = eventoData?["cr6ef_eventoid"]?.DeepClone(),
                     ["nomeEvento"] = eventoData?["cr6ef_nomeevento"]?.DeepClone(),
                     ["status"] = eventoData?["cr6ef_status"]?.DeepClone(),
-                    ["statusLabel"] = eventoData?["cr6ef_status@OData.Community.Display.V1.FormattedValue"]?.DeepClone()
+                    ["statusLabel"] = eventoData?["cr6ef_status@OData.Community.Display.V1.FormattedValue"]?.DeepClone(),
+
+                    ["formAccrediti"] = eventoData?["cr6ef_formaccrediti"]?.DeepClone(),
+                    ["formAccreditiLabel"] = eventoData?["cr6ef_formaccrediti@OData.Community.Display.V1.FormattedValue"]?.DeepClone()
                 };
                 
                 return new OkObjectResult(transformedSingle);
